@@ -55,4 +55,7 @@ ansible-playbook -i ansible-git-dnac/hosts ansible-git-dnac/ansible-git-dnac.yml
 ## Sample result of template content rendering in DNAC
 [![DEVNET](https://github.com/imanassypov/ansible-git-dnac/blob/main/sample_run.png)](https://github.com/imanassypov/ansible-git-dnac/blob/main/sample_run.png)
 
-
+## References
+- This work has been inspired by the CICD Pipeline Demo with DNA Center by Oliver Boehmer, https://gitlab.com/oboehmer/dnac-template-as-code
+- Ansible DNA Center Galaxy module collection, https://cisco-en-programmability.github.io/dnacenter-ansible/main/plugins/index.html#description
+- DNA Center API reference, https://developer.cisco.com/docs/dna-center/
