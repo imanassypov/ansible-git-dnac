@@ -1,0 +1,242 @@
+---
+- name: template_update_from_git
+  hosts: localhost
+  vars_files:
+    - credentials.yml
+  connection: local
+  gather_facts: no 
+  vars: 
+    # dnac_host: "{{dnac_host}}"
+    # dnac_verify: false
+    # dnac_username: "{{lookup('env','DNAC_USERNAME')}}"
+    # dnac_password: "{{lookup('env','DNAC_PASSWORD')}}"
+    # dnac_debug: yes
+
+  tasks:
+
+    - name: Get start timestamp from the system
+      shell: "date +%Y-%m-%dT%H-%M-%S"
+      register: timestamp
+      delegate_to: localhost
+
+    - debug: 
+        msg: "{{timestamp}}"
+
+    - name: Update templates folder from the GitHub repo
+      ansible.builtin.git:
+        accept_hostkey: yes
+        repo: "{{git_repo}}"
+        dest: "{{git_local_dest}}"
+        # depth: 1
+        update: yes
+        force: yes
+      register: git_clone_result
+
+    - name: Get cloned template list
+      find:
+        paths: "{{git_local_dest}}"
+        patterns: "*.{{template_extension}}"
+        recurse: no
+        file_type: file
+      register: template_file_list
+
+    - name: Get template commit messages
+      ansible.builtin.shell:
+        cmd: "git log --pretty=format:\"%ad | %s %d [%an]\" -1 --date=short {{ item.path }}"
+        chdir: "{{ item.path | dirname }}"
+      with_items: "{{ template_file_list.files }}"
+      register: template_git_log
+
+    - name: Set template commit list
+      set_fact:  
+        template_commit_list: "{{ template_commit_list|default([]) + [ {'commit_msg': item.stdout,
+                                                                        'name': item.cmd | regex_search('[^\\/]*$'),
+                                                                        } ] }}"
+      with_items: "{{ template_git_log.results }}"
+
+    - name: Show template commit list
+      debug:  
+        msg: "{{ template_commit_list }}"
+
+    - name: Get template diff log
+      ansible.builtin.shell:
+        cmd: "git log --pretty=format:\"%H\" -p -1 --date=short {{ item.path }}"
+        chdir: "{{ item.path | dirname }}"
+      with_items: "{{ template_file_list.files }}"
+      register: template_git_diff
+
+    - name: Set template diff list
+      set_fact:  
+        template_diff_list: "{{ template_diff_list|default([]) + [ {'diff_msg': item.stdout | regex_replace('([^\\n]+)', '{## \\1 ##}') ,
+                                                                    'name': item.cmd | regex_search('[^\\/]*$'),
+                                                                    } ] }}"
+      with_items: "{{ template_git_diff.results }}"
+
+    - name: Show template diff list
+      debug:  
+        msg: "{{ template_diff_list }}"
+
+    - name: Set git template detail list
+      set_fact:
+        template_git_list: "{{ template_git_list|default([]) + [ {'name': (item.path | basename), 
+                                                                  'id': '',
+                                                                  'language': 'JINJA',
+                                                                  'path': item.path,
+                                                                  'payload': lookup('file',item.path),
+                                                                  } ] }}"
+      with_items: "{{ template_file_list.files }}"
+
+    - name: Show git template list
+      debug:  
+        msg: "{{ template_git_list }}"
+
+    - name: Get matching template project name
+      cisco.dnac.configuration_template_project_info:
+        dnac_host: "{{dnac_host}}"
+        dnac_username: "{{dnac_username}}"
+        dnac_password: "{{dnac_password}}"
+        dnac_verify: "{{dnac_verify}}"
+        dnac_port: "{{dnac_port}}"
+        dnac_version: "{{dnac_version}}"
+        dnac_debug: "{{dnac_debug}}"
+        name: "{{projectName}}"
+      register: template_project_name
+
+    - name: Setting existing templates list
+      set_fact:
+        template_dnac_list: "{{ template_project_name.dnac_response[0].templates }}"
+
+    - name: Setting project id
+      set_fact:
+        template_project_id: "{{ template_project_name.dnac_response[0].id }}"
+
+    - name: Merge template git + dnac >> id
+      set_fact:
+        template_id_list: "{{ template_git_list |
+                              community.general.lists_mergeby(template_dnac_list, 'name')
+        }}"
+
+    - name: Merge template id + commit >> id
+      set_fact:
+        template_id_list: "{{ template_id_list |
+                              community.general.lists_mergeby(template_commit_list, 'name')
+        }}"
+
+    - name: Merge template id + diff >> id
+      set_fact:
+        template_id_list: "{{ template_id_list |
+                              community.general.lists_mergeby(template_diff_list, 'name')
+        }}"
+
+    - name: Show project id
+      debug:
+        msg: "{{ template_project_id }}"
+
+    - name: Show project contents
+      debug:
+        msg: "{{ template_project_name }}"
+
+    - name: Show existing template list
+      debug:
+        msg: "{{ template_dnac_list }}"
+
+    - name: Show template id list 
+      debug:
+        msg: "{{ template_id_list }}"
+
+    - name: Create new templates in DNAC
+      when: item.id == ''
+      cisco.dnac.configuration_template_create:
+        dnac_host: "{{dnac_host}}"
+        dnac_username: "{{dnac_username}}"
+        dnac_password: "{{dnac_password}}"
+        dnac_verify: "{{dnac_verify}}"
+        dnac_port: "{{dnac_port}}"
+        dnac_version: "{{dnac_version}}"
+        dnac_debug: "{{dnac_debug}}"
+        author: "igor"
+        composite: false
+        description: "description"
+        deviceTypes:
+        - productFamily: "Routers"
+        language: "{{ item.language }}"
+        name: "{{ item.name }}"
+        projectId: "{{ template_project_id }}"
+        #projectName: string
+        softwareType: "IOS-XE"
+        #templateContent: "{ ## test from igor}"
+        templateContent: "{{ item.diff_msg + item.payload }}"
+        version: "1.0"
+      with_items: "{{ template_id_list }}"
+
+    - name: Update existing templates in DNAC
+      when: item.id != ''
+      cisco.dnac.configuration_template:
+        dnac_host: "{{dnac_host}}"
+        dnac_username: "{{dnac_username}}"
+        dnac_password: "{{dnac_password}}"
+        dnac_verify: "{{dnac_verify}}"
+        dnac_port: "{{dnac_port}}"
+        dnac_version: "{{dnac_version}}"
+        dnac_debug: "{{dnac_debug}}"
+        author: "igor"
+        composite: false
+        description: "description"
+        deviceTypes:
+        - productFamily: "Routers"
+        name: "{{ item.name }}"
+        id: "{{ item.id }}"
+        language: "{{ item.language }}"
+        projectId: "{{ template_project_id }}"
+        #projectName: string
+        softwareType: "IOS-XE"
+        #templateContent: "{ ## test from igor}"
+        templateContent: "{{ item.diff_msg + item.payload }}"
+        version: "2.0"
+      with_items: "{{ template_id_list }}"
+
+    - name: Collecting renewed template list from DNAC
+      cisco.dnac.configuration_template_project_info:
+        dnac_host: "{{dnac_host}}"
+        dnac_username: "{{dnac_username}}"
+        dnac_password: "{{dnac_password}}"
+        dnac_verify: "{{dnac_verify}}"
+        dnac_port: "{{dnac_port}}"
+        dnac_version: "{{dnac_version}}"
+        dnac_debug: "{{dnac_debug}}"
+        name: "{{projectName}}"
+      register: template_project_name
+
+    - name: Set existing templates list
+      set_fact:
+        template_dnac_list: "{{ template_project_name.dnac_response[0].templates }}"
+
+    - name: Re-create merged template id list
+      set_fact:
+        template_id_list: "{{ template_git_list |
+                              community.general.lists_mergeby(template_dnac_list, 'name')
+        }}"
+
+    - name: Re-create merged id + commit >> id
+      set_fact:
+        template_id_list: "{{ template_id_list |
+                              community.general.lists_mergeby(template_commit_list, 'name')
+        }}"
+
+    - name: Show refreshed template list
+      debug:
+        msg: "{{ template_id_list }}"
+
+    - name: Version DNAC templates
+      cisco.dnac.configuration_template_version_create:
+        dnac_host: "{{dnac_host}}"
+        dnac_username: "{{dnac_username}}"
+        dnac_password: "{{dnac_password}}"
+        dnac_verify: "{{dnac_verify}}"
+        dnac_port: "{{dnac_port}}"
+        dnac_version: "{{dnac_version}}"
+        dnac_debug: "{{dnac_debug}}"
+        comments: "{{ (item.commit_msg)[:1024] }}"
+        templateId: "{{ item.id }}"
+      with_items: "{{ template_id_list }}"
+  
