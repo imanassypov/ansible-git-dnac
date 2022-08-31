@@ -52,3 +52,7 @@ Modify 'credentials.yml' and 'hosts' files to match your execution environment. 
 ansible-playbook -i ansible-git-dnac/hosts ansible-git-dnac/ansible-git-dnac.yml
 ```
 
+## Sample result of template content rendering in DNAC
+[![DEVNET](https://github.com/imanassypov/ansible-git-dnac/blob/main/sample_run.png)](https://github.com/imanassypov/ansible-git-dnac/blob/main/sample_run.png)
+
+
