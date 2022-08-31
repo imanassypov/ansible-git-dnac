@@ -10,6 +10,10 @@
 - for each template, adds commit message to template summary:comments section
 - for each templates, adds comment section with the file last diff to template payload
 
+For demonstration purposes, the following sample public git repo of templates was used as a reference: https://github.com/imanassypov/dnac_git_templates
+
+Once a change to the git repo is detected and playbook is run, the changes from the repo will get synchronized to the referenced DNAC instance
+
 ## Tested with
 ```
 python --version
@@ -53,6 +57,11 @@ ansible-playbook -i ansible-git-dnac/hosts ansible-git-dnac/ansible-git-dnac.yml
 ```
 
 ## Sample result of template content rendering in DNAC
+In the screenshot below, the following elements have been provisioned by the Ansible playbook:
+- template files 'mgmt_loopback.j2', and 'snmp_template.j2' with their respective content synchronized to the sample git template repository here: https://github.com/imanassypov/dnac_git_templates
+- template comments header automatically generated to reflect diff from the last version of the same template
+- template version and the commit message of the author describing modifications in human readable form
+
 [![DEVNET](https://github.com/imanassypov/ansible-git-dnac/blob/main/sample_run.png)](https://github.com/imanassypov/ansible-git-dnac/blob/main/sample_run.png)
 
 ## References
