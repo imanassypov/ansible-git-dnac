@@ -42,7 +42,7 @@
 
     - name: Get template commit messages
       ansible.builtin.shell:
-        cmd: "git log --pretty=format:\"%ad | %s %d [%an]\" -1 --date=short {{ item.path }}"
+        cmd: "git log --pretty=format:\"%ad | %B [%an]\" -1 --date=short {{ item.path }}"
         chdir: "{{ item.path | dirname }}"
       with_items: "{{ template_file_list.files }}"
       register: template_git_log
