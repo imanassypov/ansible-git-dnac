@@ -263,7 +263,6 @@
         id: "{{ item.id }}"
         language: "{{ item.language }}"
         projectId: "{{ template_project_id }}"
-
         softwareType: "IOS-XE"
         templateContent: "{{ item.diff_msg + item.payload }}"
       with_items: "{{ template_id_list }}"
@@ -284,23 +283,11 @@
       set_fact:
         template_dnac_list: "{{ template_project_name.dnac_response[0].templates }}"
 
-    - name: Re-create merged template id list
+    - name: Update template id list with newly created template ids
       set_fact:
-        template_id_list: "{{ template_git_list |
+        template_id_list: "{{ template_id_list |
                               community.general.lists_mergeby(template_dnac_list, 'name')
                           }}"
-
-    - name: Re-create merged id + commit >> id
-      set_fact:
-        template_id_list: "{{ template_id_list |
-                              community.general.lists_mergeby(template_commit_list, 'name')
-                          }}"
-
-    - name: Merge template id + dnac existing payload >> id
-      set_fact:
-        template_id_list: "{{ template_id_list |
-                              community.general.lists_mergeby(template_dnac_content_list, 'name')
-                            }}"
 
     - name: Merge template id + diff >> id
       set_fact:
