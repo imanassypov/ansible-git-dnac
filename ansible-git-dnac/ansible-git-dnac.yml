@@ -26,6 +26,15 @@
       debug: 
         msg: "{{ start_timestamp.date + ' ' + start_timestamp.time}}"
 
+    - name: Get Project name from matching Git repo
+      set_fact:
+        projectName: "{{ (git_repo | regex_search('.*\/([^\/]*).git', '\\1'))[0]}}"
+
+    - name: --DEBUG-- Project Name
+      when: DEBUG is defined
+      debug: 
+        msg: "{{ projectName }}"
+
     - name: Clone templates project from the GitHub repo
       ansible.builtin.git:
         accept_hostkey: yes
@@ -107,15 +116,49 @@
         dnac_version: "{{dnac_version}}"
         dnac_debug: "{{dnac_debug}}"
         name: "{{projectName}}"
-      register: template_project_name
+      register: template_project
+
+    - name: Create new DNAC project if not found
+      when: template_project.dnac_response | length == 0
+      cisco.dnac.configuration_template_project:
+        dnac_host: "{{dnac_host}}"
+        dnac_username: "{{dnac_username}}"
+        dnac_password: "{{dnac_password}}"
+        dnac_verify: "{{dnac_verify}}"
+        dnac_port: "{{dnac_port}}"
+        dnac_version: "{{dnac_version}}"
+        dnac_debug: "{{dnac_debug}}"
+        name: "{{projectName}}"
+
+    - name: Get new template project name that we just created
+      when: template_project.dnac_response | length == 0
+      cisco.dnac.configuration_template_project_info:
+        dnac_host: "{{dnac_host}}"
+        dnac_username: "{{dnac_username}}"
+        dnac_password: "{{dnac_password}}"
+        dnac_verify: "{{dnac_verify}}"
+        dnac_port: "{{dnac_port}}"
+        dnac_version: "{{dnac_version}}"
+        dnac_debug: "{{dnac_debug}}"
+        name: "{{projectName}}"
+      register: template_project
+
+    - name: --DEBUG-- create new project
+      when: DEBUG is defined
+      debug:
+        msg: "{{ template_project }}"
+
+    - name: Set matching DNAC Template Project
+      set_fact:
+        template_project: "{{ template_project.dnac_response[0] }}"
 
     - name: Setting existing templates list
       set_fact:
-        template_dnac_list: "{{ template_project_name.dnac_response[0].templates }}"
+        template_dnac_list: "{{ template_project.templates }}"
 
     - name: Setting project id
       set_fact:
-        template_project_id: "{{ template_project_name.dnac_response[0].id }}"
+        template_project_id: "{{ template_project.id }}"
 
     - name: Merge template git + dnac >> id
       set_fact:
@@ -140,10 +183,10 @@
       debug:
         msg: "{{ template_project_id }}"
 
-    - name: --DEBUG-- show project contents
+    - name: --DEBUG-- show matching DNAC Project
       when: DEBUG is defined
       debug:
-        msg: "{{ template_project_name }}"
+        msg: "{{ template_project }}"
 
     - name: --DEBUG-- show existing template list
       when: DEBUG is defined
