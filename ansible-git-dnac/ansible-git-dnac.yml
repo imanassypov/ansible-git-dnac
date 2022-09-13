@@ -141,7 +141,7 @@
         dnac_version: "{{dnac_version}}"
         dnac_debug: "{{dnac_debug}}"
         name: "{{projectName}}"
-      register: template_project
+        register: template_project
 
     - name: --DEBUG-- create new project
       when: DEBUG is defined
@@ -178,7 +178,7 @@
                               community.general.lists_mergeby(template_diff_list, 'name')
                           }}"
 
-    - name:  --DEBUG-- show project id
+    - name: --DEBUG-- show project id
       when: DEBUG is defined
       debug:
         msg: "{{ template_project_id }}"
