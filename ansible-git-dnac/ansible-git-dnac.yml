@@ -143,11 +143,6 @@
         name: "{{projectName}}"
         register: template_project
 
-    - name: --DEBUG-- create new project
-      when: DEBUG is defined
-      debug:
-        msg: "{{ template_project }}"
-
     - name: Set matching DNAC Template Project
       set_fact:
         template_project: "{{ template_project.dnac_response[0] }}"
@@ -178,15 +173,15 @@
                               community.general.lists_mergeby(template_diff_list, 'name')
                           }}"
 
+    - name: --DEBUG-- show DNAC Template Project contents
+      when: DEBUG is defined
+      debug:
+        msg: "{{ template_project }}"
+
     - name: --DEBUG-- show project id
       when: DEBUG is defined
       debug:
         msg: "{{ template_project_id }}"
-
-    - name: --DEBUG-- show matching DNAC Project
-      when: DEBUG is defined
-      debug:
-        msg: "{{ template_project }}"
 
     - name: --DEBUG-- show existing template list
       when: DEBUG is defined
@@ -197,6 +192,34 @@
       when: DEBUG is defined
       debug:
         msg: "{{ template_id_list }}"
+
+
+    - name: Get template payload from DNAC
+      cisco.dnac.configuration_template:
+        dnac_host: "{{dnac_host}}"
+        dnac_username: "{{dnac_username}}"
+        dnac_password: "{{dnac_password}}"
+        dnac_verify: "{{dnac_verify}}"
+        dnac_port: "{{dnac_port}}"
+        dnac_version: "{{dnac_version}}"
+        dnac_debug: "{{dnac_debug}}"
+        templateId: "{{ item.id }}"
+      with_items: "{{ template_dnac_list }}"
+      register: template_dnac_content
+
+    - name: Set template template contents list
+      set_fact:  
+        template_dnac_content_list: "{{ template_dnac_content_list|default([]) + [ {'dnac_template_content': item.dnac_response.templateContent,
+                                                                                    'name': item.dnac_response.name,
+                                                                                    } ] 
+                                      }}"
+      with_items: "{{ template_dnac_content.results }}"
+
+    - name: Merge template id + dnac existing payload >> id
+      set_fact:
+        template_id_list: "{{ template_id_list |
+                              community.general.lists_mergeby(template_dnac_content_list, 'name')
+                            }}"
 
     - name: Create new templates in DNAC
       when: item.id == ''
@@ -222,7 +245,7 @@
       with_items: "{{ template_id_list }}"
 
     - name: Update existing templates in DNAC
-      when: item.id != ''
+      when: item.id != '' and item.diff_msg + item.payload != item.dnac_template_content
       cisco.dnac.configuration_template:
         dnac_host: "{{dnac_host}}"
         dnac_username: "{{dnac_username}}"
@@ -240,6 +263,7 @@
         id: "{{ item.id }}"
         language: "{{ item.language }}"
         projectId: "{{ template_project_id }}"
+
         softwareType: "IOS-XE"
         templateContent: "{{ item.diff_msg + item.payload }}"
       with_items: "{{ template_id_list }}"
@@ -272,12 +296,25 @@
                               community.general.lists_mergeby(template_commit_list, 'name')
                           }}"
 
+    - name: Merge template id + dnac existing payload >> id
+      set_fact:
+        template_id_list: "{{ template_id_list |
+                              community.general.lists_mergeby(template_dnac_content_list, 'name')
+                            }}"
+
+    - name: Merge template id + diff >> id
+      set_fact:
+        template_id_list: "{{ template_id_list |
+                              community.general.lists_mergeby(template_diff_list, 'name')
+                          }}"
+
     - name: --DEBUG-- show refreshed template list
       when: DEBUG is defined
       debug:
         msg: "{{ template_id_list }}"
 
     - name: Version DNAC templates
+      when: item.id != '' and item.diff_msg + item.payload != item.dnac_template_content
       cisco.dnac.configuration_template_version_create:
         dnac_host: "{{dnac_host}}"
         dnac_username: "{{dnac_username}}"
