@@ -4,30 +4,33 @@
   vars_files:
     - credentials.yml
   connection: local
-  gather_facts: no 
+  gather_facts: yes 
   vars: 
     # dnac_host: "{{dnac_host}}"
     # dnac_verify: false
     # dnac_username: "{{lookup('env','DNAC_USERNAME')}}"
     # dnac_password: "{{lookup('env','DNAC_PASSWORD')}}"
     # dnac_debug: yes
+    DEBUG: "{{lookup('env','DEBUG')}}"
+    # DNAC Template Summary field is length-limited to 1024 chars
+    DNAC_TEMPLATE_SUMMARY_MAXCHAR: 1024
 
   tasks:
 
-    - name: Get start timestamp from the system
-      shell: "date +%Y-%m-%dT%H-%M-%S"
-      register: timestamp
-      delegate_to: localhost
+    - name: Set execution timestamp
+      set_fact:
+        start_timestamp: "{{ ansible_date_time }}"
 
-    - debug: 
-        msg: "{{timestamp}}"
+    - name: --DEBUG-- Execution timestamp
+      when: DEBUG is defined
+      debug: 
+        msg: "{{ start_timestamp.date + ' ' + start_timestamp.time}}"
 
-    - name: Update templates folder from the GitHub repo
+    - name: Clone templates project from the GitHub repo
       ansible.builtin.git:
         accept_hostkey: yes
         repo: "{{git_repo}}"
         dest: "{{git_local_dest}}"
-        # depth: 1
         update: yes
         force: yes
       register: git_clone_result
@@ -54,7 +57,8 @@
                                                                         } ] }}"
       with_items: "{{ template_git_log.results }}"
 
-    - name: Show template commit list
+    - name: --DEBUG-- template commit list
+      when: DEBUG is defined
       debug:  
         msg: "{{ template_commit_list }}"
 
@@ -67,12 +71,14 @@
 
     - name: Set template diff list
       set_fact:  
-        template_diff_list: "{{ template_diff_list|default([]) + [ {'diff_msg': item.stdout | regex_replace('([^\\n]+)', '{## \\1 ##}') ,
+        template_diff_list: "{{ template_diff_list|default([]) + [ {'diff_msg': item.stdout | regex_replace('([^\\n]+)', '{## \\1 ##}') + '\n' ,
                                                                     'name': item.cmd | regex_search('[^\\/]*$'),
-                                                                    } ] }}"
+                                                                    } ] 
+                              }}"
       with_items: "{{ template_git_diff.results }}"
 
-    - name: Show template diff list
+    - name: --DEBUG-- show template diff list
+      when: DEBUG is defined
       debug:  
         msg: "{{ template_diff_list }}"
 
@@ -86,7 +92,8 @@
                                                                   } ] }}"
       with_items: "{{ template_file_list.files }}"
 
-    - name: Show git template list
+    - name: --DEBUG-- show git template list
+      when: DEBUG is defined
       debug:  
         msg: "{{ template_git_list }}"
 
@@ -114,33 +121,37 @@
       set_fact:
         template_id_list: "{{ template_git_list |
                               community.general.lists_mergeby(template_dnac_list, 'name')
-        }}"
+                          }}"
 
     - name: Merge template id + commit >> id
       set_fact:
         template_id_list: "{{ template_id_list |
                               community.general.lists_mergeby(template_commit_list, 'name')
-        }}"
+                          }}"
 
     - name: Merge template id + diff >> id
       set_fact:
         template_id_list: "{{ template_id_list |
                               community.general.lists_mergeby(template_diff_list, 'name')
-        }}"
+                          }}"
 
-    - name: Show project id
+    - name:  --DEBUG-- show project id
+      when: DEBUG is defined
       debug:
         msg: "{{ template_project_id }}"
 
-    - name: Show project contents
+    - name: --DEBUG-- show project contents
+      when: DEBUG is defined
       debug:
         msg: "{{ template_project_name }}"
 
-    - name: Show existing template list
+    - name: --DEBUG-- show existing template list
+      when: DEBUG is defined
       debug:
         msg: "{{ template_dnac_list }}"
 
-    - name: Show template id list 
+    - name: --DEBUG-- show template id list 
+      when: DEBUG is defined
       debug:
         msg: "{{ template_id_list }}"
 
@@ -154,7 +165,7 @@
         dnac_port: "{{dnac_port}}"
         dnac_version: "{{dnac_version}}"
         dnac_debug: "{{dnac_debug}}"
-        author: "igor"
+        author: "{{ dnac_username }}"
         composite: false
         description: "description"
         deviceTypes:
@@ -162,9 +173,7 @@
         language: "{{ item.language }}"
         name: "{{ item.name }}"
         projectId: "{{ template_project_id }}"
-        #projectName: string
         softwareType: "IOS-XE"
-        #templateContent: "{ ## test from igor}"
         templateContent: "{{ item.diff_msg + item.payload }}"
         version: "1.0"
       with_items: "{{ template_id_list }}"
@@ -179,7 +188,7 @@
         dnac_port: "{{dnac_port}}"
         dnac_version: "{{dnac_version}}"
         dnac_debug: "{{dnac_debug}}"
-        author: "igor"
+        author: "{{ dnac_username }}"
         composite: false
         description: "description"
         deviceTypes:
@@ -188,11 +197,8 @@
         id: "{{ item.id }}"
         language: "{{ item.language }}"
         projectId: "{{ template_project_id }}"
-        #projectName: string
         softwareType: "IOS-XE"
-        #templateContent: "{ ## test from igor}"
         templateContent: "{{ item.diff_msg + item.payload }}"
-        version: "2.0"
       with_items: "{{ template_id_list }}"
 
     - name: Collecting renewed template list from DNAC
@@ -215,15 +221,16 @@
       set_fact:
         template_id_list: "{{ template_git_list |
                               community.general.lists_mergeby(template_dnac_list, 'name')
-        }}"
+                          }}"
 
     - name: Re-create merged id + commit >> id
       set_fact:
         template_id_list: "{{ template_id_list |
                               community.general.lists_mergeby(template_commit_list, 'name')
-        }}"
+                          }}"
 
-    - name: Show refreshed template list
+    - name: --DEBUG-- show refreshed template list
+      when: DEBUG is defined
       debug:
         msg: "{{ template_id_list }}"
 
@@ -236,7 +243,7 @@
         dnac_port: "{{dnac_port}}"
         dnac_version: "{{dnac_version}}"
         dnac_debug: "{{dnac_debug}}"
-        comments: "{{ (item.commit_msg)[:1024] }}"
+        comments: "{{ (item.commit_msg)[:DNAC_TEMPLATE_SUMMARY_MAXCHAR] }}"
         templateId: "{{ item.id }}"
       with_items: "{{ template_id_list }}"
   
