@@ -216,6 +216,7 @@
       with_items: "{{ template_dnac_content.results }}"
 
     - name: Merge template id + dnac existing payload >> id
+      when: template_dnac_content_list is defined
       set_fact:
         template_id_list: "{{ template_id_list |
                               community.general.lists_mergeby(template_dnac_content_list, 'name')
@@ -301,7 +302,7 @@
         msg: "{{ template_id_list }}"
 
     - name: Version DNAC templates
-      when: item.id != '' and item.diff_msg + item.payload != item.dnac_template_content
+      when: item.id != '' and (item.dnac_template_content is not defined or item.diff_msg + item.payload != item.dnac_template_content)
       cisco.dnac.configuration_template_version_create:
         dnac_host: "{{dnac_host}}"
         dnac_username: "{{dnac_username}}"
