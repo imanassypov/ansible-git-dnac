@@ -106,7 +106,7 @@
       debug:  
         msg: "{{ template_git_list }}"
 
-    - name: Get matching template project name
+    - name: Get DNAC Template Project detail
       cisco.dnac.configuration_template_project_info:
         dnac_host: "{{dnac_host}}"
         dnac_username: "{{dnac_username}}"
@@ -130,7 +130,7 @@
         dnac_debug: "{{dnac_debug}}"
         name: "{{projectName}}"
 
-    - name: Get new template project name that we just created
+    - name: Refresh DNAC Project detail
       when: template_project.dnac_response | length == 0
       cisco.dnac.configuration_template_project_info:
         dnac_host: "{{dnac_host}}"
@@ -141,7 +141,7 @@
         dnac_version: "{{dnac_version}}"
         dnac_debug: "{{dnac_debug}}"
         name: "{{projectName}}"
-        register: template_project
+      register: template_project
 
     - name: Set matching DNAC Template Project
       set_fact:
