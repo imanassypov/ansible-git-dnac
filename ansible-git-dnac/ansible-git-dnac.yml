@@ -131,7 +131,6 @@
         name: "{{projectName}}"
 
     - name: Refresh DNAC Project detail
-      when: template_project.dnac_response | length == 0
       cisco.dnac.configuration_template_project_info:
         dnac_host: "{{dnac_host}}"
         dnac_username: "{{dnac_username}}"
